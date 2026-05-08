@@ -74,6 +74,35 @@ def health_check():
     return {"status": "ok", "message": "Re:Born AI 서버 정상 동작 중"}
 
 
+@app.get("/daily-tip")
+async def generate_daily_tip():
+    prompt = """
+당신은 친환경 생활 전문가입니다.
+오늘의 실천 팁을 한 가지 알려주세요.
+
+주제는 아래 중 하나를 랜덤으로 선택하세요:
+- 의류/섬유 업사이클링
+- 올바른 분리배출 방법
+- 생활 속 재활용 아이디어
+- 친환경 소비 습관
+
+규칙:
+- 2문장 이내로 짧고 실용적으로
+- 구체적인 사례를 포함할 것
+- 딱딱하지 않고 친근한 말투
+- JSON 형식으로만 응답: {{"tip": "내용"}}
+- 다른 말은 절대 하지 마세요
+"""
+    try:
+        response = model.generate_content(prompt)
+        cleaned = re.sub(r"```json|```", "", response.text).strip()
+        data = json.loads(cleaned)
+        return {"tip": data.get("tip", "오늘도 분리배출 잊지 마세요!")}
+    except Exception as e:
+        print(f"[daily-tip 오류] {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/analyze-v2")
 async def analyze(req: LabelRequest):
     if not req.label or req.label.strip() == "":
