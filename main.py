@@ -22,6 +22,11 @@ class LabelRequest(BaseModel):
     imageBase64: Optional[str] = None
 
 
+class ReformVerifyRequest(BaseModel):
+    imageBase64: str
+    label: Optional[str] = ""
+
+
 def build_prompt(label: str) -> str:
     return f"""
 당신은 업사이클링 전문가입니다.
@@ -141,6 +146,56 @@ async def generate_daily_tip():
     except Exception as e:
         print(f"[daily-tip 오류] {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/verify-reform")
+async def verify_reform(req: ReformVerifyRequest):
+    if not req.imageBase64:
+        raise HTTPException(status_code=400, detail="imageBase64가 비어있어요")
+
+    try:
+        image_data = base64.b64decode(req.imageBase64)
+        label_hint = f' (원래 물건: {req.label})' if req.label else ''
+
+        prompt = f"""
+당신은 업사이클링 전문가입니다.
+사용자가 리폼(업사이클링)을 완료했다고 주장하며 사진을 업로드했습니다{label_hint}.
+
+이미지를 보고 다음을 판단하세요:
+1. 이 사진이 리폼/업사이클링된 결과물로 보이는가?
+2. 단순히 원래 물건을 그대로 찍은 것은 아닌가?
+3. 어떤 형태의 리폼이 이루어진 것으로 보이는가?
+
+아래 JSON 형식으로만 응답하세요. 다른 말은 절대 하지 마세요.
+
+{{
+  "isVerified": true,
+  "message": "청바지를 가방으로 성공적으로 리폼한 것이 확인되었어요! 멋진 업사이클링이에요 🎉"
+}}
+
+판단 기준:
+- isVerified: 리폼된 결과물이 사진에 보이면 true, 원래 물건 그대로이거나 리폼 여부를 판단하기 어려우면 false
+- message: 사용자에게 보여줄 짧고 친근한 메시지 (한국어, 1~2문장)
+- 리폼이 확인된 경우 어떤 리폼인지 간단히 언급
+- 리폼이 확인되지 않은 경우 "리폼 완료 후 결과물 사진을 업로드해주세요" 형태로 안내
+"""
+
+        response = model.generate_content([
+            {"inline_data": {"mime_type": "image/jpeg", "data": image_data}},
+            prompt,
+        ])
+
+        cleaned = re.sub(r"```json|```", "", response.text).strip()
+        data = json.loads(cleaned)
+        return {
+            "isVerified": bool(data.get("isVerified", False)),
+            "message": data.get("message", "사진을 확인할 수 없어요.")
+        }
+
+    except json.JSONDecodeError:
+        return {"isVerified": False, "message": "사진 분석 중 오류가 발생했어요. 다시 시도해주세요."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"리폼 검증 실패: {str(e)}")
 
 
 @app.post("/analyze-v2")
