@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
 import json
 import re
+import base64
 
 load_dotenv()
 
@@ -17,6 +19,7 @@ model = genai.GenerativeModel("gemini-2.5-flash")
 
 class LabelRequest(BaseModel):
     label: str
+    imageBase64: Optional[str] = None
 
 
 def build_prompt(label: str) -> str:
@@ -47,6 +50,43 @@ def build_prompt(label: str) -> str:
 - difficulty: Easy(초보도 가능) Normal(약간의 기술 필요) Hard(전문가 수준) 중 하나
 - reformPlan: 각 단계를 \\n으로 구분, 5단계 이내로 구체적으로
 - 리폼이 불가능한 경우 isReformable을 false로 하고 reformPlan에 올바른 분리배출 방법을 작성
+"""
+
+
+def build_image_prompt(label: str) -> str:
+    return f"""
+당신은 업사이클링 전문가입니다.
+사용자가 촬영한 이미지를 직접 보고 분석해주세요. ML Kit이 "{label}"로 분류했습니다.
+
+이미지를 실제로 보고 다음을 판단하세요:
+- 물체의 실제 재질과 종류
+- 현재 상태 (낡음, 손상, 오염 여부 등)
+- 업사이클링 가능 여부 (상태가 너무 나쁘면 false)
+- 가능하다면 구체적인 리폼 방법
+
+아래 형식을 반드시 지켜서 JSON으로만 응답하세요.
+다른 말은 절대 하지 마세요. JSON만 출력하세요.
+
+{{
+  "label": "{label}",
+  "materialType": "이미지에서 확인한 실제 재질을 한국어로",
+  "conditionGrade": "A",
+  "isReformable": true,
+  "difficulty": "Easy",
+  "reformTitle": "이미지 기반 리폼 아이디어 제목",
+  "reformPlan": "step1: 첫 번째 단계\\nstep2: 두 번째 단계\\nstep3: 세 번째 단계\\nstep4: 네 번째 단계\\nstep5: 다섯 번째 단계",
+  "materials": "필요한 재료를 쉼표로 구분",
+  "estimatedTime": "예상 소요 시간",
+  "estimatedCost": "예상 비용"
+}}
+
+각 필드 작성 기준:
+- materialType: 이미지에서 직접 확인한 재질
+- conditionGrade: 이미지에서 확인한 실제 상태 — A(좋음/깨끗함) B(보통/약간 낡음) C(나쁨/심하게 손상됨)
+- isReformable: 이미지 상태를 보고 실제로 업사이클링 가능한지 판단. 너무 손상되었거나 오염되었으면 false
+- difficulty: Easy(초보도 가능) Normal(약간의 기술 필요) Hard(전문가 수준)
+- reformPlan: 이미지에서 본 실제 물건에 맞는 구체적인 리폼 단계
+- 리폼이 불가능한 경우 isReformable을 false로 하고 reformPlan에 올바른 분리배출 방법 작성
 """
 
 
@@ -109,8 +149,18 @@ async def analyze(req: LabelRequest):
         raise HTTPException(status_code=400, detail="label이 비어있어요")
 
     try:
-        prompt = build_prompt(req.label)
-        response = model.generate_content(prompt)
+        # 이미지가 있으면 멀티모달, 없으면 텍스트만
+        if req.imageBase64:
+            image_data = base64.b64decode(req.imageBase64)
+            prompt = build_image_prompt(req.label)
+            response = model.generate_content([
+                {"inline_data": {"mime_type": "image/jpeg", "data": image_data}},
+                prompt,
+            ])
+        else:
+            prompt = build_prompt(req.label)
+            response = model.generate_content(prompt)
+
         return parse_response(req.label, response.text)
 
     except Exception as e:
