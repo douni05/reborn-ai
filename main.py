@@ -45,7 +45,8 @@ def build_prompt(label: str) -> str:
   "reformPlan": "step1: 첫 번째 단계\\nstep2: 두 번째 단계\\nstep3: 세 번째 단계\\nstep4: 네 번째 단계\\nstep5: 다섯 번째 단계",
   "materials": "필요한 재료를 쉼표로 구분 (예: 가위, 바늘, 실, 지퍼)",
   "estimatedTime": "예상 소요 시간 (예: 약 1시간)",
-  "estimatedCost": "예상 비용 (예: 없음 또는 약 5,000원)"
+  "estimatedCost": "예상 비용 (예: 없음 또는 약 5,000원)",
+  "disposalGuide": "step1: 분리배출 첫 번째 단계\\nstep2: 분리배출 두 번째 단계\\nstep3: 분리배출 세 번째 단계"
 }}
 
 각 필드 작성 기준:
@@ -53,8 +54,8 @@ def build_prompt(label: str) -> str:
 - conditionGrade: 일반적인 상태 기준으로 A(좋음) B(보통) C(나쁨) 중 하나
 - isReformable: 업사이클링이 현실적으로 가능하면 true, 불가능하면 false
 - difficulty: Easy(초보도 가능) Normal(약간의 기술 필요) Hard(전문가 수준) 중 하나
-- reformPlan: 각 단계를 \\n으로 구분, 5단계 이내로 구체적으로
-- 리폼이 불가능한 경우 isReformable을 false로 하고 reformPlan에 올바른 분리배출 방법을 작성
+- reformPlan: 각 단계를 \\n으로 구분, 5단계 이내로 구체적으로. 리폼 불가능한 경우 빈 문자열
+- disposalGuide: isReformable 여부와 관계없이 항상 이 재질의 올바른 분리배출 방법을 step1, step2, step3 형식으로 작성
 """
 
 
@@ -82,7 +83,8 @@ def build_image_prompt(label: str) -> str:
   "reformPlan": "step1: 첫 번째 단계\\nstep2: 두 번째 단계\\nstep3: 세 번째 단계\\nstep4: 네 번째 단계\\nstep5: 다섯 번째 단계",
   "materials": "필요한 재료를 쉼표로 구분",
   "estimatedTime": "예상 소요 시간",
-  "estimatedCost": "예상 비용"
+  "estimatedCost": "예상 비용",
+  "disposalGuide": "step1: 분리배출 첫 번째 단계\\nstep2: 분리배출 두 번째 단계\\nstep3: 분리배출 세 번째 단계"
 }}
 
 각 필드 작성 기준:
@@ -90,8 +92,8 @@ def build_image_prompt(label: str) -> str:
 - conditionGrade: 이미지에서 확인한 실제 상태 — A(좋음/깨끗함) B(보통/약간 낡음) C(나쁨/심하게 손상됨)
 - isReformable: 이미지 상태를 보고 실제로 업사이클링 가능한지 판단. 너무 손상되었거나 오염되었으면 false
 - difficulty: Easy(초보도 가능) Normal(약간의 기술 필요) Hard(전문가 수준)
-- reformPlan: 이미지에서 본 실제 물건에 맞는 구체적인 리폼 단계
-- 리폼이 불가능한 경우 isReformable을 false로 하고 reformPlan에 올바른 분리배출 방법 작성
+- reformPlan: 이미지에서 본 실제 물건에 맞는 구체적인 리폼 단계. 리폼 불가능한 경우 빈 문자열
+- disposalGuide: isReformable 여부와 관계없이 항상 이 재질의 올바른 분리배출 방법을 step1, step2, step3 형식으로 작성
 """
 
 
@@ -107,10 +109,11 @@ def parse_response(label: str, raw_text: str) -> dict:
             "isReformable": False,
             "difficulty": "Normal",
             "reformTitle": "분리배출 안내",
-            "reformPlan": "step1: 재질을 확인하세요\nstep2: 해당 분리배출함에 배출하세요",
+            "reformPlan": "",
             "materials": "",
             "estimatedTime": "",
-            "estimatedCost": ""
+            "estimatedCost": "",
+            "disposalGuide": "step1: 재질을 확인하세요\nstep2: 해당 재질의 분리배출함에 배출하세요\nstep3: 이물질이 묻어있다면 세척 후 배출하세요"
         }
 
 
